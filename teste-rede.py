@@ -1,34 +1,31 @@
-from sklearn.preprocessing import StandardScaler,LabelEncoder
-from tensorflow import keras
+import pandas as pd
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
+from tensorflow.keras.models import load_model
 
-# Carregar o modelo treinado
-loaded_model = keras.models.load_model('meu_modelo.h5')
+modelo_carregado = load_model('meu_modelo.h5')
 
-# Supondo que você tenha os valores de estado, cultivo, temperatura e umidade disponíveis
-estado = 'SP'  # Exemplo de estado
-cultivo = 'Arroz Integral'  # Exemplo de cultivo
-temperatura = 90  # Exemplo de temperatura
-umidade = 0  # Exemplo de umidade
+exemplo_teste = pd.DataFrame({
+    'Estado': ['PR','PR','PR','PR'],
+    'Temperatura': [27,34,10,40],
+    'Umidade': [22,27,80,10],
+    'Semente': ['Arroz Integral','Arroz Integral','Arroz Integral','Arroz Integral']
+})
 
-# Aplicar Label Encoding aos valores de estado e cultivo
-encoder_estado = LabelEncoder()
-encoder_cultivo = LabelEncoder()
+encoder = LabelEncoder()
+exemplo_teste['Semente'] = encoder.fit_transform(exemplo_teste['Semente'])
+onehot = OneHotEncoder(sparse=False)
+estado_encoded = onehot.fit_transform(exemplo_teste[['Estado']])
+df_teste = pd.DataFrame(estado_encoded, columns=[f'Estado_{state}' for state in encoder.classes_])
+df_teste['Temperatura'] = exemplo_teste['Temperatura']
+df_teste['Umidade'] = exemplo_teste['Umidade']
+df_teste['Semente'] = exemplo_teste['Semente']
 
-estado_encoded = encoder_estado.fit_transform([estado])
-cultivo_encoded = encoder_cultivo.fit_transform([cultivo])
 
-# Criar uma lista com os valores de entrada codificados
-dados_input = [[estado_encoded[0], cultivo_encoded[0], temperatura, umidade]]
-
-# Normalizar os dados de entrada usando o mesmo scaler utilizado para treinar o modelo
 scaler = StandardScaler()
-X_input_scaled = scaler.fit_transform(dados_input)
+X_teste_scaled = scaler.fit_transform(df_teste)
 
-# Fazer previsões usando o modelo carregado
-predictions = loaded_model.predict(X_input_scaled).flatten()
 
-# Exibir a previsão
-print("Previsão para a combinação estado-cultivo:")
-print(predictions[0])
+previsao = modelo_carregado.predict(X_teste_scaled)
 
-# Aqui você pode fazer qualquer outra manipulação ou análise da previsão conforme necessário
+
+print(previsao)

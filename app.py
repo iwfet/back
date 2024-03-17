@@ -32,12 +32,16 @@ def buscarClima(estado):
     url = f'https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}'
     response = requests.get(url)
     clima = response.json()
-    return (clima['main']['temp'] - 32) * 5/9, clima['main']['humidity']
+    return (kelvin_para_celsius(clima['main']['temp'] ), clima['main']['humidity'])
 
 def saveDB(cultivo, estado, temperatura, umidade, previsao):
     nova_consulta = Consulta(cultivo=cultivo, estado=estado, temperatura=temperatura, umidade=umidade, previsao=previsao)
     db.session.add(nova_consulta)
     db.session.commit()
+
+def kelvin_para_celsius(temperatura_kelvin):
+    temperatura_celsius = temperatura_kelvin - 273.15
+    return temperatura_celsius
 
 @app.route('/previsao', methods=['POST'])
 def previsao():
