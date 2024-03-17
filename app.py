@@ -4,6 +4,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import requests
 from flask_cors import CORS
 from tensorflow import keras
+from datetime import datetime
 
 
 estados_brasil = {"PR": {"nome": "Parana", "lat": -31.7, "lon": -60.5},}
@@ -24,6 +25,7 @@ class Consulta(db.Model):
     temperatura = db.Column(db.Float)
     umidade = db.Column(db.Float)
     previsao = db.Column(db.Float)
+    data = db.Column(db.Date, default=datetime.now().date())
 
 def buscarClima(estado):
     api_key = '48ef3483de242b79bb4c4c7298dca55a'
@@ -76,7 +78,8 @@ def ultimas_consultas():
             "estado": consulta.estado,
             "temperatura": consulta.temperatura,
             "umidade": consulta.umidade,
-            "previsao": consulta.previsao
+            "previsao": consulta.previsao,
+                "data": consulta.data,     
         })
     return jsonify({"consultas": resultado})
     
