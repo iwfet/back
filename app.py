@@ -1,27 +1,21 @@
 from flask import Flask, request, jsonify
-import numpy as np
-import tensorflow as tf
-from sklearn.preprocessing import LabelEncoder, StandardScaler
 from flask_sqlalchemy import SQLAlchemy
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import requests
 from flask_cors import CORS
+from tensorflow import keras
 
 
-estados_brasil = {
-    "RO": {"nome": "Acre", "lat": 3.7759917, "lon": -60.2530222},
-}
+estados_brasil = {"PR": {"nome": "Parana", "lat": -31.7, "lon": -60.5},}
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///consulta.db'
 db = SQLAlchemy(app)
 cors = CORS(app, resources={r"/*": {"origins": "*"}})
+loaded_model = keras.models.load_model('meu_modelo.h5')
 
-model = tf.keras.models.load_model('modelo_rede_neural.h5')
 
-encoder_estado = LabelEncoder()
-encoder_cultivo = LabelEncoder()
 
-scaler = StandardScaler()
 
 class Consulta(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -40,44 +34,32 @@ def buscarClima(estado):
     clima = response.json()
     return (clima['main']['temp'] - 32) * 5/9, clima['main']['humidity']
 
-
 def saveDB(cultivo, estado, temperatura, umidade, previsao):
     nova_consulta = Consulta(cultivo=cultivo, estado=estado, temperatura=temperatura, umidade=umidade, previsao=previsao)
     db.session.add(nova_consulta)
     db.session.commit()
-
 
 @app.route('/previsao', methods=['POST'])
 def previsao():
     data = request.get_json()
     estado = data['estado']
     cultivo = data['cultivo']
+    temperatura, umidade = buscarClima(estado)
+    encoder_estado = LabelEncoder()
+    encoder_cultivo = LabelEncoder()
     
-    temp, humidity = buscarClima(estado)
+    estado_encoded = encoder_estado.fit_transform([estado])
+    cultivo_encoded = encoder_cultivo.fit_transform([cultivo])
+    
+    dados_input = [[estado_encoded[0], cultivo_encoded[0], temperatura, umidade]]
 
-    if not hasattr(previsao, 'encoder_estado_fitted'):  
-        states_list = list(estados_brasil.keys()) 
-        encoder_estado.fit(states_list)  
-        setattr(previsao, 'encoder_estado_fitted', True)  
+    scaler = StandardScaler()
+    X_input_scaled = scaler.fit_transform(dados_input)
+    predictions = loaded_model.predict(X_input_scaled).flatten()
 
-    estado_encoded = encoder_estado.transform([estado])
+    saveDB(cultivo, estado, temperatura, umidade, predictions[0])
 
-    if not hasattr(previsao, 'encoder_cultivo_fitted'):  
-        cultivos_list = list(set(df['Cultivo']))  
-        encoder_cultivo.fit(cultivos_list)  
-        setattr(previsao, 'encoder_cultivo_fitted', True) 
-
-    cultivo_encoded = encoder_cultivo.transform([cultivo])
-
-    X = np.concatenate([estado_encoded, np.array([[temp, humidity]]), np.expand_dims(cultivo_encoded, axis=1)], axis=1)
-    X = scaler.transform(X)
-
-  
-    previsao = model.predict(X)
-
-    saveDB(cultivo, estado, temp, humidity, previsao)
-
-    return jsonify({'previsao': float(previsao), "temp":temp,"humidity":humidity })
+    return jsonify({'previsao': format(float(predictions[0]), '.2f'), "temperatura":temperatura,"umidade":umidade })
 
 @app.route('/ultimas_consultas', methods=['GET'])
 def ultimas_consultas():
@@ -94,9 +76,6 @@ def ultimas_consultas():
         })
     return jsonify({"consultas": resultado})
     
-    
-    
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
